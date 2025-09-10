@@ -3,8 +3,8 @@ package com.ohgoodteam.ohgoodpay.recommend.controller;
 
 import com.ohgoodteam.ohgoodpay.recommend.dto.DashSayMyNameRequest;
 import com.ohgoodteam.ohgoodpay.recommend.dto.DashSayMyNameResponse;
-import com.ohgoodteam.ohgoodpay.recommend.dto.SpendingAnalyzeRequest;
-import com.ohgoodteam.ohgoodpay.recommend.dto.SpendingAnalyzeResponse;
+import com.ohgoodteam.ohgoodpay.recommend.dto.DashSpendingAnalyzeRequest;
+import com.ohgoodteam.ohgoodpay.recommend.dto.DashSpendingAnalyzeResponse;
 import com.ohgoodteam.ohgoodpay.recommend.service.SayMyNameService;
 import com.ohgoodteam.ohgoodpay.recommend.service.SpendingAnalyzeService;
 import com.ohgoodteam.ohgoodpay.recommend.util.ApiResponseWrapper;
@@ -46,16 +46,15 @@ public class DashController {
         }
     }
 
-    @Operation(summary = "사용자 3개월 결제내역 input", description = "사용자 3개월 결제 정보를 바탕으로 카테고리 분류 및 소비 패턴 분석")
-    @PostMapping(value="/analyze", consumes = MediaType.APPLICATION_JSON_VALUE)
-    public ApiResponseWrapper<SpendingAnalyzeResponse> analyze(@RequestBody @Valid SpendingAnalyzeRequest body) {
-        return ApiResponseWrapper.ok(spendingAnalyzeService.execute(body)); // 이 경우 A로 가야 함
-    }
-
-    @PostMapping(value="/analyze", params="customerId")
-    public ApiResponseWrapper<SpendingAnalyzeResponse> analyzeByCustomerId(@RequestParam Long customerId) {
+    @Operation(summary = "사용자 3개월 결제내역 분석",
+            description = "요청 바디에 customerId만 보내면 서버가 DB에서 3개월 결제 내역을 조회→카테고리 분류/분석 후 결과를 반환합니다.")
+    @PostMapping(value="/analyze", consumes = MediaType.APPLICATION_JSON_VALUE, produces = MediaType.APPLICATION_JSON_VALUE)
+    public ApiResponseWrapper<DashSpendingAnalyzeResponse> analyze(
+            @Valid @RequestBody DashSpendingAnalyzeRequest req
+    ) {
         try {
-            return ApiResponseWrapper.ok(spendingAnalyzeService.execute(customerId));
+            var resp = spendingAnalyzeService.execute(req.getCustomerId());
+            return ApiResponseWrapper.ok(resp);
         } catch (IllegalArgumentException e) { return ApiResponseWrapper.error(400, e.getMessage()); }
         catch (IllegalStateException e)  { return ApiResponseWrapper.error(502, e.getMessage()); }
         catch (Exception e)              { return ApiResponseWrapper.error(500, "서버 내부 오류가 발생했습니다"); }

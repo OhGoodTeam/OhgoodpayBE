@@ -6,8 +6,7 @@ import com.fasterxml.jackson.core.type.TypeReference;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.ohgoodteam.ohgoodpay.config.FastApiConfig;
 import com.ohgoodteam.ohgoodpay.recommend.dto.DashSayMyNameResponse;
-import com.ohgoodteam.ohgoodpay.recommend.dto.SpendingAnalyzeRequest;
-import com.ohgoodteam.ohgoodpay.recommend.dto.SpendingAnalyzeResponse;
+import com.ohgoodteam.ohgoodpay.recommend.dto.DashSpendingAnalyzeResponse;
 import lombok.Data;
 import lombok.NoArgsConstructor;
 import lombok.RequiredArgsConstructor;
@@ -19,8 +18,8 @@ import org.springframework.stereotype.Component;
 import org.springframework.web.reactive.function.client.WebClient;
 
 import java.time.Duration;
-import java.util.Map;
 import java.util.Optional;
+import java.util.Map;
 
 @Slf4j
 @Component("dashAiClientImpl")
@@ -32,7 +31,7 @@ public class DashAiClientImpl implements DashAiClient {
     @Qualifier("fastapiWebClient")
     private final WebClient webClient;
     private final FastApiConfig cfg;
-    private final ObjectMapper om; // Spring 기본 ObjectMapper 주입
+    private final ObjectMapper om;
 
     @Override
     public DashSayMyNameResponse sayMyName(Map<String, Object> payload) {
@@ -103,25 +102,68 @@ public class DashAiClientImpl implements DashAiClient {
 
     private record HttpResult(HttpStatusCode status, String body) {}
 
+    @Override
+    public DashSpendingAnalyzeResponse analyzeSpending(SpendingAnalyzeRequest req) {
+        String endpoint = Optional.ofNullable(cfg.getPaths())
+                .map(m -> m.get("analyzeSpending"))
+                .orElse("/dash/analyze");
+        String path = Optional.ofNullable(cfg.getApiPrefix()).orElse("") +
+                (endpoint.startsWith("/") ? endpoint : "/" + endpoint);
+
+        int readTimeoutMs = Optional.ofNullable(cfg.getHttp())
+                .map(FastApiConfig.Http::getReadTimeout).orElse(5000);
+
+        int n = (req.getTransactions() == null) ? 0 : req.getTransactions().size();
+        log.info("[AI->] POST {} transactions={}", path, n);
+
+        // 상태코드 + 원문 바디 확보(에러 바디 포함)
+        HttpResult result = webClient.post()
+                .uri(path)
+                .contentType(MediaType.APPLICATION_JSON)
+                .accept(MediaType.APPLICATION_JSON)
+                .header("X-Internal-Token", cfg.getInternalToken()) // sayMyName와 동일하게 헤더 붙임
+                .bodyValue(req)
+                .exchangeToMono(resp -> resp.bodyToMono(String.class)
+                        .defaultIfEmpty("")
+                        .map(body -> new HttpResult(resp.statusCode(), body)))
+                .timeout(Duration.ofMillis(readTimeoutMs + 1000L))
+                .block();
+
+        if (result == null) throw new IllegalStateException("FastAPI empty response @ " + path);
+        log.debug("[AI<-] {} body={}", result.status, preview(result.body, 500));
+
+        if (!result.status.is2xxSuccessful()) {
+            throw new IllegalStateException("FastAPI " + result.status + " @ " + path + ": " + result.body);
+        }
+
+        // 1) envelope → 2) raw 순서로 파싱 (sayMyName와 동일 패턴)
+        try {
+            FastApiEnvelope<DashSpendingAnalyzeResponse> env =
+                    om.readValue(result.body, new TypeReference<FastApiEnvelope<DashSpendingAnalyzeResponse>>() {});
+            if (env != null && env.getData() != null) {
+                if (!isSuccess(env)) {
+                    throw new IllegalStateException("FastAPI failure: code=" + env.getCode() + ", message=" + env.getMessage());
+                }
+                return env.getData();
+            }
+        } catch (Exception ignore) {
+            // envelope 아님 → raw로 재시도
+        }
+
+        try {
+            return om.readValue(result.body, DashSpendingAnalyzeResponse.class);
+        } catch (Exception e) {
+            throw new IllegalStateException("FastAPI parse error @ " + path + ": " + e.getMessage()
+                    + " ; body=" + preview(result.body, 1000), e);
+        }
+    }
+
+    private record HttpResult(HttpStatusCode status, String body) {}
+
     private static String preview(String s, int max) {
         if (s == null) return "null";
         return (s.length() <= max) ? s : s.substring(0, max) + "...";
     }
-
-    private String resolvedPath() {
-        String prefix = Optional.ofNullable(cfg.getApiPrefix()).orElse("");
-        String endpoint = Optional.ofNullable(cfg.getPaths())
-                .map(m -> m.get("sayMyName"))
-                .orElse("/dash/saymyname");
-        return join(prefix, endpoint); // -> /ml/dash/saymyname
-    }
-    private static String join(String a, String b) {
-        if (a == null || a.isBlank()) return b.startsWith("/") ? b : "/" + b;
-        String left  = a.endsWith("/") ? a.substring(0, a.length()-1) : a;
-        String right = b.startsWith("/") ? b : "/" + b;
-        return left + right;
-    }
-
 
     private boolean isSuccess(FastApiEnvelope<?> env) {
         Object s = env.getSuccess();
@@ -131,38 +173,6 @@ public class DashAiClientImpl implements DashAiClient {
         return "success".equalsIgnoreCase(String.valueOf(env.getMessage()));
     }
 
-    @Override
-    public SpendingAnalyzeResponse analyzeSpending(SpendingAnalyzeRequest req) {
-        String endpoint = Optional.ofNullable(cfg.getPaths()).map(m -> m.get("analyzeSpending"))
-                .orElse("/dash/analyze");
-        String path = Optional.ofNullable(cfg.getApiPrefix()).orElse("") +
-                (endpoint.startsWith("/") ? endpoint : "/" + endpoint);
-
-        int readTimeoutMs = Optional.ofNullable(cfg.getHttp())
-                .map(FastApiConfig.Http::getReadTimeout).orElse(5000);
-
-        log.info("[AI->] POST {} transactions={}", path,
-                req.getTransactions() == null ? 0 : req.getTransactions().size());
-
-        String body = webClient.post()
-                .uri(path)
-                .contentType(MediaType.APPLICATION_JSON)
-                .accept(MediaType.APPLICATION_JSON)
-                .bodyValue(req)
-                .retrieve()
-                .bodyToMono(String.class)
-                .timeout(Duration.ofMillis(readTimeoutMs + 1000L))
-                .block();
-
-        try {
-            return om.readValue(body, new TypeReference<SpendingAnalyzeResponse>() {});
-        } catch (Exception e) {
-            throw new IllegalStateException("FastAPI parse error @ " + path + ": " + e.getMessage()
-                    + " ; body=" + body, e);
-        }
-    }
-
-    // ----- 내부 파싱용 DTO -----
     @Data @NoArgsConstructor
     @JsonIgnoreProperties(ignoreUnknown = true)
     static class FastApiEnvelope<T> {
@@ -183,6 +193,4 @@ public class DashAiClientImpl implements DashAiClient {
         @JsonProperty("score")
         private Integer score;
     }
-
-
 }
