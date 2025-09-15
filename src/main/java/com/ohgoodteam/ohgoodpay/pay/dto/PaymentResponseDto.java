@@ -14,4 +14,5 @@ public class PaymentResponseDTO {
     private String qrCode;
     private String pinCode;
     private boolean success;
+    private String qrImageUrl;
 }
