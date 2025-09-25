@@ -39,8 +39,8 @@ dependencies {
 	testImplementation 'org.springframework.security:spring-security-test'
 	testRuntimeOnly 'org.junit.platform:junit-platform-launcher'
 	implementation 'io.jsonwebtoken:jjwt-api:0.12.6'
-  implementation 'io.jsonwebtoken:jjwt-impl:0.12.6'
-  implementation 'io.jsonwebtoken:jjwt-gson:0.12.6'
+    implementation 'io.jsonwebtoken:jjwt-impl:0.12.6'
+    implementation 'io.jsonwebtoken:jjwt-gson:0.12.6'
 
 	// QueryDSL 설정
 	implementation("com.querydsl:querydsl-jpa:5.0.0:jakarta")
