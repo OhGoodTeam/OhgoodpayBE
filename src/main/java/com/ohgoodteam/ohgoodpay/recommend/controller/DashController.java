@@ -7,69 +7,103 @@ import com.ohgoodteam.ohgoodpay.recommend.service.PayThisMonthService;
 import com.ohgoodteam.ohgoodpay.recommend.service.SayMyNameService;
 import com.ohgoodteam.ohgoodpay.recommend.service.SpendingAnalyzeService;
 import com.ohgoodteam.ohgoodpay.recommend.util.ApiResponseWrapper;
+import com.ohgoodteam.ohgoodpay.security.util.JWTUtil;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.tags.Tag;
+import jakarta.servlet.http.HttpServletRequest;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
+import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.validation.annotation.Validated;
 import org.springframework.web.bind.annotation.*;
+import org.springframework.web.server.ResponseStatusException;
 
 @RestController
-@RequestMapping(value = "/api/dash")
+@RequestMapping("/api/dash")
 @RequiredArgsConstructor
 @Validated
 @Tag(name = "Dash")
 public class DashController {
 
+    private final JWTUtil jwtUtil;
     private final SayMyNameService sayMyNameService;
     private final SpendingAnalyzeService spendingAnalyzeService;
     private final DashAdviceService dashAdviceService;
     private final PayThisMonthService service;
 
-    @Operation(
-            summary = "ohgoodscore 계산 및 한마디",
-            description = "고객 식별자로 ohgoodscore를 계산하고 한마디 메시지를 생성합니다."
-    )
-    @PostMapping(value = "/saymyname")
+    /** JwtUtil의 체크드 예외를 401로 변환 */
+    private Long extractCustomerIdSafe(HttpServletRequest request) {
+        try {
+            String idStr = jwtUtil.extractCustomerId(request);
+            return Long.parseLong(idStr);
+        } catch (Exception e) {
+            throw new ResponseStatusException(HttpStatus.UNAUTHORIZED, "Invalid or missing token", e);
+        }
+    }
+
+    /** body가 우선, 없으면 토큰에서 추출 */
+    private Long resolveCustomerId(HttpServletRequest request, Long fromBody) {
+        return (fromBody != null) ? fromBody : extractCustomerIdSafe(request);
+    }
+
+    @Operation(summary = "ohgoodscore 계산 및 한마디")
+    @PostMapping("/saymyname")
     public ResponseEntity<ApiResponseWrapper<DashSayMyNameResponseDTO>> sayMyName(
-            @RequestBody @Valid DashSayMyNameRequestDTO req
+            HttpServletRequest request,
+            @RequestBody(required = false) @Valid DashSayMyNameRequestDTO req
     ) {
-        var out = sayMyNameService.execute(req.getCustomerId());
+        Long customerId = resolveCustomerId(request, (req != null ? req.getCustomerId() : null));
+        var out = sayMyNameService.execute(customerId);
         return ResponseEntity.ok(ApiResponseWrapper.ok(out));
     }
 
-    @Operation(
-            summary = "결제 내역 카테고리 분류",
-            description = "최근 N개월(기본 3개월) 결제 내역을 월별/카테고리별로 분석합니다."
-    )
-    @PostMapping(value = "/analyze")
+    @Operation(summary = "결제 내역 카테고리 분류")
+    @PostMapping("/analyze")
     public ResponseEntity<ApiResponseWrapper<SpendingAnalyzeResponseDTO>> analyze(
-            @RequestBody @Valid SpendingAnalyzeRequestDTO req
+            HttpServletRequest request,
+            @RequestBody(required = false) @Valid SpendingAnalyzeRequestDTO req
     ) {
-        var data = spendingAnalyzeService.analyze(req);
+        Long customerId = resolveCustomerId(request, (req != null ? req.getCustomerId() : null));
+        Integer windowMonths = (req != null ? req.getWindowMonths() : null);
+
+        // 기본값 3개월
+        if (windowMonths == null) windowMonths = 3;
+
+        // 불변 DTO → 새로 만들어 전달 (정적 팩토리 활용)
+        SpendingAnalyzeRequestDTO finalReq =
+                (req != null && req.getCustomerId() != null && req.getWindowMonths() != null)
+                        ? req
+                        : SpendingAnalyzeRequestDTO.of(customerId, windowMonths);
+
+        var data = spendingAnalyzeService.analyze(finalReq);
         return ResponseEntity.ok(ApiResponseWrapper.ok(data));
     }
 
-    @Operation(
-            summary = "맞춤 AI 조언",
-            description = "고객의 최근 소비/상태를 기반으로 개인화된 조언 3가지를 반환합니다."
-    )
-    @PostMapping(value = "/advice")
+    @Operation(summary = "맞춤 AI 조언")
+    @PostMapping("/advice")
     public ResponseEntity<ApiResponseWrapper<AdviceDTO.Out>> advice(
-            @Valid @RequestBody AdviceRequestDTO req
+            HttpServletRequest request,
+            @RequestBody(required = false) @Valid AdviceRequestDTO req
     ) {
-        var data = dashAdviceService.generate(4L);
+        Long customerId = resolveCustomerId(request, (req != null ? req.getCustomerId() : null));
+        var data = dashAdviceService.generate(customerId); // ✅ 4L 하드코딩 제거
         return ResponseEntity.ok(ApiResponseWrapper.ok(data));
     }
-
-    @Operation(
-            summary = "이번 달 결제 내역",
-            description = "이번 달(오늘까지)의 결제 내역과 합계 정보를 반환합니다."
-    )
-    @GetMapping({"/customer/{customerId}/pay-this-month"})
+    // 토큰 기반
+    @Operation(summary = "이번 달 결제 내역(me)")
+    @GetMapping("/me/pay-this-month")
+    public ResponseEntity<ApiResponseWrapper<Object>> getThisMonthForMe(HttpServletRequest request) {
+        Long customerId = resolveCustomerId(request, null);
+        var data = service.getThisMonth(customerId);
+        return ResponseEntity.ok(ApiResponseWrapper.ok(data));
+    }
+    
+    @Operation(summary = "이번 달 결제 내역")
+    @GetMapping("/customer/{customerId}/pay-this-month")
     public ResponseEntity<ApiResponseWrapper<Object>> getThisMonth(@PathVariable Long customerId) {
         var data = service.getThisMonth(customerId);
         return ResponseEntity.ok(ApiResponseWrapper.ok(data));
     }
+
 }

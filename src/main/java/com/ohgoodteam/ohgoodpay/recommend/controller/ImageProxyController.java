@@ -1,6 +1,7 @@
 package com.ohgoodteam.ohgoodpay.recommend.controller;
 
 import io.swagger.v3.oas.annotations.tags.Tag;
+import jakarta.annotation.security.PermitAll;
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.MediaType;
@@ -23,6 +24,7 @@ public class ImageProxyController {
     }
 
     @GetMapping("/image-proxy")
+    @PermitAll
     public ResponseEntity<byte[]> proxyImage(@RequestParam String url) {
         try {
             ResponseEntity<byte[]> response = restTemplate.getForEntity(url, byte[].class);

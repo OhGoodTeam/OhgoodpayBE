@@ -16,7 +16,8 @@ public class SayMyNameDTO {
         // ---------- 요청 DTO ----------
         @JsonAlias({"customer_id","customerId"})
         private final Long customerId;
-        private final String username;
+        @JsonAlias({"username"})
+        private final String name;
         private final String grade;                 // 선택
         private final boolean extensionThisMonth;
         private final boolean autoExtensionThisMonth;
@@ -29,14 +30,14 @@ public class SayMyNameDTO {
 
 
         public static In ofBasic(
-                Long customerId, String username,
+                Long customerId, String name,
                 boolean extensionThisMonth, boolean autoExtensionThisMonth,
                 int autoExtensionCnt12m, int gradePoint, boolean isBlocked,
                 int paymentCnt12m, double paymentAmount12m, double currentCycleSpend
         ) {
             return builder()
                     .customerId(customerId)
-                    .username(username)
+                    .name(name)
                     .extensionThisMonth(extensionThisMonth)
                     .autoExtensionThisMonth(autoExtensionThisMonth)
                     .autoExtensionCnt12m(autoExtensionCnt12m)
@@ -50,14 +51,14 @@ public class SayMyNameDTO {
 
         /** grade 포함 프리셋 */
         public static In ofWithGrade(
-                Long customerId, String username, String grade,
+                Long customerId, String name, String grade,
                 boolean extensionThisMonth, boolean autoExtensionThisMonth,
                 int autoExtensionCnt12m, int gradePoint, boolean isBlocked,
                 int paymentCnt12m, double paymentAmount12m, double currentCycleSpend
         ) {
             return builder()
                     .customerId(customerId)
-                    .username(username)
+                    .name(name)
                     .grade(grade)
                     .extensionThisMonth(extensionThisMonth)
                     .autoExtensionThisMonth(autoExtensionThisMonth)

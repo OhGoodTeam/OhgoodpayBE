@@ -56,14 +56,12 @@ public class SayMyNameServiceImpl implements SayMyNameService {
                 paymentRepository.existsAutoExtensionThisMonth(customerId, firstOfThisMonth, firstOfNextMonth)
                         || (isAuto && extensionThisMonth); // 정책: 자동연장 ON + 연장 발생 = 자동연장 간주
         var customer = customerRepository.findById(customerId).orElseThrow();
-        String username = (customer.getNickname() != null && !customer.getNickname().isBlank())
-                ? customer.getNickname()
-                : customer.getName();
+        String name = customer.getName();
 
         // 속껍질 In 구성 (FastAPI용 피처 포함)
         var in = SayMyNameDTO.In.builder()
                 .customerId(customerId)
-                .username(username)
+                .name(name)
                 .extensionThisMonth(extensionThisMonth)
                 .autoExtensionThisMonth(autoExtensionThisMonth)
                 .autoExtensionCnt12m(autoExtCnt12m)

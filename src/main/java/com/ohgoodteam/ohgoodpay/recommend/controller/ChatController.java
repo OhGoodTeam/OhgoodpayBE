@@ -4,7 +4,9 @@ import com.ohgoodteam.ohgoodpay.recommend.dto.ChatStartRequestDTO;
 import com.ohgoodteam.ohgoodpay.recommend.dto.datadto.llmdto.BasicChatResponseDTO;
 import com.ohgoodteam.ohgoodpay.recommend.service.ChatService;
 import com.ohgoodteam.ohgoodpay.recommend.util.ApiResponseWrapper;
+import com.ohgoodteam.ohgoodpay.security.util.JWTUtil;
 import io.swagger.v3.oas.annotations.tags.Tag;
+import jakarta.servlet.http.HttpServletRequest;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
@@ -16,7 +18,6 @@ import org.springframework.web.bind.annotation.RestController;
 /**
  * AI 추천 채팅 컨트롤러
  *
- * TODO : JwtUtil에서 가져오는 방식인데, 이거 @AuthenticationPrincipal(expression = "customerId") Long customerId 이거 쓸껀지 맞출건지는 고민 해봐야 할듯...
  */
 @Tag(name = "Chat")
 @RestController
@@ -25,18 +26,16 @@ import org.springframework.web.bind.annotation.RestController;
 @RequestMapping("/api/chat")
 public class ChatController {
     private final ChatService chatService;
+    private final JWTUtil jwtUtil; //jwtUtil 사용하는 방식으로 변경
 
     @PostMapping("")
-    public ApiResponseWrapper<BasicChatResponseDTO> chat(
-            @RequestBody ChatStartRequestDTO request
-//            @AuthenticationPrincipal(expression = "customerId") Long customerId
-            ) {
+    public ApiResponseWrapper<BasicChatResponseDTO> chat( @RequestBody ChatStartRequestDTO chatRequest, HttpServletRequest request) {
         try {
+            Long customerId = Long.parseLong(jwtUtil.extractCustomerId(request));
             BasicChatResponseDTO response = chatService.chat(
-//                    customerId,
-                    request.getCustomerId(),
-                    request.getSessionId(),
-                    request.getInputMessage()
+                    customerId,
+                    chatRequest.getSessionId(),
+                    chatRequest.getInputMessage()
             );
             return ApiResponseWrapper.ok(response);
         } catch (IllegalArgumentException e) {

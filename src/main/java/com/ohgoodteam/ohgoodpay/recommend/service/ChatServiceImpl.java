@@ -93,10 +93,17 @@ public class ChatServiceImpl implements ChatService {
      * 추천 플로우 처리 (상품 캐싱 및 응답 재생성)
      */
     private BasicChatResponseDTO handleRecommendationFlow(BasicChatResponseDTO response, String sessionId) {
-        if ("recommendation".equals(response.getFlow())) {
-            // 새 상품 캐싱
-            chatCacheService.saveProductsBySession(sessionId, response.getProducts());
-        }
+//        if ("recommendation".equals(response.getFlow())) {
+//            // 새 상품 캐싱
+//            chatCacheService.saveProductsBySession(sessionId, response.getProducts());
+//        }
+
+        // 현재 버전은 캐싱된거 가져오는게 아닌, 새로 llm에 넣는거라 일단 조건 삭제..
+        // 차후 확장을 위해 redis에 상품 주입하는건 남겨둠.
+        chatCacheService.saveProductsBySession(sessionId, response.getProducts());
+
+        // product url보기 위한 로그
+        log.info("상품 이미지 url : {}", response.getProducts().get(0).getImage());
 
         return BasicChatResponseDTO.builder()
                 .sessionId(response.getSessionId())

@@ -28,6 +28,7 @@ import java.util.stream.Collectors;
 public class FastApiClient {
 
     private String baseUrl;
+    private String server; //나중에 배포시 바꿔야 합니다.
 
 //    @Value("${fastapi.api-prefix}")
 //    private String apiPrefix;
@@ -38,6 +39,7 @@ public class FastApiClient {
 
     public FastApiClient() {
         this.restTemplate = new RestTemplate();
+        this.server = "http://localhost:";
         this.baseUrl = "http://localhost:8000";
         this.serverPort = "8080";
     }
@@ -115,7 +117,7 @@ public class FastApiClient {
     private ProductDTO convertToProxyUrl(ProductDTO product) {
         if (product.getImage() != null && !product.getImage().isEmpty()) {
             try {
-                String proxyUrl = "http://localhost:" + serverPort + "/ml/api/image-proxy?url=" +
+                String proxyUrl = server + serverPort + "/api/image-proxy?url=" +
                     java.net.URLEncoder.encode(product.getImage(), "UTF-8");
 
                 return ProductDTO.builder()
