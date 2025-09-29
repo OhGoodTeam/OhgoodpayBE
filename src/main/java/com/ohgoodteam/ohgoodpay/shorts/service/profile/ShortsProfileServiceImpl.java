@@ -50,15 +50,14 @@ public class ShortsProfileServiceImpl implements ShortsProfileService {
      * @return
      */
     @Override
-    public ShortsProfileDataDTO getProfile(Long targetId, int page, String sortType) {
+    public ShortsProfileDataDTO getProfile(Long customerId, Long targetId, int page, String sortType) {
         // 1. 사용자 정보 조회
         CustomerEntity customer = customerRepository.findById(targetId).orElseThrow(()->new IllegalArgumentException("존재하지 않는 사용자입니다."));
         // 2. 구독 상태 조회
         Long subscriberCount = subscriptionRepository.countFollwers(targetId);
-        // 구독 여부
-        Long customerId = 1L; // TODO: 인증 로직 후 수정
+
         SubscriptionStatus subscriptionStatus;
-        boolean isSubscribed = subscriptionRepository.existsByFollowerCustomerIdAndFollowingCustomerId(1L, targetId); // TODO: 인증 로직 후 수정
+        boolean isSubscribed = subscriptionRepository.existsByFollowerCustomerIdAndFollowingCustomerId(customerId, targetId); // TODO: 인증 로직 후 수정
         subscriptionStatus = isSubscribed ?  SubscriptionStatus.SUBSCRIBED : SubscriptionStatus.NOT_SUBSCRIBED;
         if(customerId.equals(targetId)){
             subscriptionStatus = SubscriptionStatus.SELF;

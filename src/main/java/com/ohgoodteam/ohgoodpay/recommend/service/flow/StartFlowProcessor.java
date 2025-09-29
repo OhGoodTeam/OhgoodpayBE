@@ -29,6 +29,7 @@ public class StartFlowProcessor implements FlowProcessor{
         // 1. 다음 플로우로 전환
         FlowConfig config = flowConfiguration.getFlowConfig(context.getCurrentFlow());
         ChatFlowType nextFlow = config.getNextFlow();
+
         chatCacheService.saveFlowBySession(context.getSessionId(), nextFlow.getValue()); //사용을 위해 다음 플로우를 저장
         chatCacheService.saveCntBySession(context.getSessionId(), 1); //카운트가 있었다면 초기화
 

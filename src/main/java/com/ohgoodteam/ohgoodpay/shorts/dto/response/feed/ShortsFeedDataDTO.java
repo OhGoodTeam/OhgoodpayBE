@@ -2,6 +2,7 @@ package com.ohgoodteam.ohgoodpay.shorts.dto.response.feed;
 
 
 import com.ohgoodteam.ohgoodpay.common.entity.ShortsEntity;
+import com.ohgoodteam.ohgoodpay.shorts.enums.profile.SubscriptionStatus;
 import lombok.AllArgsConstructor;
 import lombok.Builder;
 import lombok.Getter;
@@ -36,6 +37,9 @@ public class ShortsFeedDataDTO {
 
     // 반응한 상태 (예 : "like", "dislike" )
     private String myReaction;
+
+    // 구독 상태
+    private SubscriptionStatus subscriptionStatus;
 
     public static ShortsFeedDataDTO entityToDto(ShortsEntity shortsEntity) {
         return  ShortsFeedDataDTO.builder()

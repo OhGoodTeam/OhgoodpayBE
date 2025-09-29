@@ -15,6 +15,7 @@ import org.springframework.transaction.annotation.Transactional;
 
 import java.time.LocalDateTime;
 import java.util.List;
+import java.util.Map;
 
 @Repository
 public interface ShortsRepository extends JpaRepository<ShortsEntity, Long>, ShortsRepositoryCustom {
@@ -44,13 +45,45 @@ public interface ShortsRepository extends JpaRepository<ShortsEntity, Long>, Sho
         LEFT JOIN reaction r ON s.shorts_id = r.shorts_id AND r.customer_id = :customerId
         ORDER BY score DESC, s.date DESC, s.shorts_id DESC
     """, nativeQuery = true)
-    Page<Object[]> findAllFeeds(@Param("wLike") double wLike,
+    Page<Map<String,Object>> findAllFeeds(@Param("wLike") double wLike,
                                  @Param("wComment") double wComment,
                                 @Param("wHashtag") double wHashtag,
                                 @Param("wRecency") double wRecency,
                                 @Param("tauHours") double tauHours,
                                @Param("customerId") Long customerId,
                                Pageable pageable);
+
+
+    @Query(value = """
+        SELECT 
+            s.shorts_id,
+            s.video_name,
+            s.thumbnail,
+            s.shorts_name,
+            s.shorts_explain,
+            s.date,
+            c.customer_id,
+            c.nickname,
+            c.profile_img,
+            s.like_count,
+            s.comment_count,
+            null as MyReaction,
+            CAST(
+              (:wLike    * LOG(1 + s.like_count)) +
+              (:wComment * LOG(1 + s.comment_count)) +
+              (:wHashtag * (CASE WHEN s.shorts_explain REGEXP '#[0-9A-Za-z가-힣_]+' THEN 1 ELSE 0 END)) +
+              (:wRecency * EXP(- GREATEST(TIMESTAMPDIFF(HOUR, s.date, NOW()),0) / :tauHours))
+            AS DECIMAL(12,6)) AS score
+        FROM shorts s
+        LEFT JOIN customer c ON s.customer_id = c.customer_id
+        ORDER BY score DESC, s.date DESC, s.shorts_id DESC
+    """, nativeQuery = true)
+    Page<Map<String,Object>> findAllFeedsNoToken(@Param("wLike") double wLike,
+                                          @Param("wComment") double wComment,
+                                          @Param("wHashtag") double wHashtag,
+                                          @Param("wRecency") double wRecency,
+                                          @Param("tauHours") double tauHours,
+                                          Pageable pageable);
 
 
     // 미사용

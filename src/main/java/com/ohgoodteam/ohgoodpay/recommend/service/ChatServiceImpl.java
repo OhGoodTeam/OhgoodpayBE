@@ -34,10 +34,11 @@ public class ChatServiceImpl implements ChatService {
      */
     @Override
     @Transactional(readOnly = true)
-    public BasicChatResponseDTO chat(Long customerId, String sessionId, String message) {
+    public BasicChatResponseDTO chat(Long customerId, String sessionId, String message, String flow) {
         log.info("세션 아이디와 고객 아이디 체크 sessionId: {} for customerId: {}", sessionId, customerId);
 
-        // 1. 현재 플로우 조회
+        // 1. 받은 플로우 저장
+        chatCacheService.saveFlowBySession(sessionId, flow);
         String currentFlowStr = chatCacheService.getFlowBySession(sessionId);
         ChatFlowType currentFlow = ChatFlowType.fromValue(currentFlowStr);
 

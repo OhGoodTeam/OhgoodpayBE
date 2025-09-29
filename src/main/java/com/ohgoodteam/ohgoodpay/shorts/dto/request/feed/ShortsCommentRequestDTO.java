@@ -11,7 +11,6 @@ public class ShortsCommentRequestDTO {
     /**
      * 댓글 작성 요청 DTO
      */
-    private Long customerId; // 작성자 ID
     private String content; // 댓글 내용
     private Long gno; // 그룹 번호 (부모 :0, 자식 :부모 댓글 ID)
 }

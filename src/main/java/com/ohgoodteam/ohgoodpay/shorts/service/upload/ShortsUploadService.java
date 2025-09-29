@@ -15,6 +15,6 @@ public interface ShortsUploadService {
      * @return
      * @throws IOException
      */
-    ShortsUploadResponseDTO upload(MultipartFile file, MultipartFile thumbnail, String title, String content) throws IOException;
+    ShortsUploadResponseDTO upload(MultipartFile file, MultipartFile thumbnail, String title, String content, Long customerId) throws IOException;
 
 }

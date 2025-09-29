@@ -7,6 +7,8 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.time.LocalDateTime;
 import java.util.UUID;
+
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.http.MediaType;
 import org.springframework.stereotype.Service;
@@ -27,6 +29,7 @@ import software.amazon.awssdk.services.s3.model.ListObjectsV2Response;
 import software.amazon.awssdk.services.s3.model.PutObjectRequest;
 import software.amazon.awssdk.services.s3.model.S3Object;
 
+@Slf4j
 @Service
 @RequiredArgsConstructor
 public class ShortsUploadServiceImpl implements ShortsUploadService {
@@ -54,7 +57,9 @@ public class ShortsUploadServiceImpl implements ShortsUploadService {
      */
     @Override
     @Transactional
-    public ShortsUploadResponseDTO upload(MultipartFile file, MultipartFile thumbnail, String title, String content) throws IOException {
+    public ShortsUploadResponseDTO upload(MultipartFile file, MultipartFile thumbnail, String title, String content, Long customerId) throws IOException {
+        log.info("쇼츠 업로드 서비스 시작: file={}, thumbnail={}, title={}, content={}, customerId={}",
+            file.getOriginalFilename(), (thumbnail == null ? "null" : thumbnail.getOriginalFilename()), title, content, customerId);
         if (file.isEmpty() || thumbnail.isEmpty()) throw new IllegalArgumentException("파일을 다시 업로드해주세요.");
         if (file.getSize() > 200L * 1024 * 1024) throw new IllegalArgumentException("허용용량이 초과되었습니다.");
 
@@ -69,12 +74,13 @@ public class ShortsUploadServiceImpl implements ShortsUploadService {
             // 업로드 파일을 임시 경로로 복사
             file.transferTo(tmpVid.toFile());
             thumbnail.transferTo(tmpImg.toFile());
-
+            log.info("임시 파일 생성: {}, {}", tmpVid, tmpImg);
             // 메타 분석
             String[] probe = runFfprobe(tmpVid);
             int width  = Integer.parseInt(probe[0]);
             int height = Integer.parseInt(probe[1]);
             double duration = Double.parseDouble(probe[2]);
+            log.info("ffprobe 결과: {}x{}, {} sec", width, height, String.format("%.1f", duration));
 
             if (duration > 60.0) throw new IllegalArgumentException("영상 길이가 60초 이상이면 업로드할 수 없습니다.");
 
@@ -86,6 +92,7 @@ public class ShortsUploadServiceImpl implements ShortsUploadService {
                     Files.deleteIfExists(tmpVid); // 원본 임시파일 삭제
                     tmpVid = tmp720;              // 업로드 대상 링크를 tmp720으로 변경함
                 } catch (Exception e) {
+                    log.info("720p 변환 실패: {}", e.getMessage());
                     try { Files.deleteIfExists(tmp720); } catch (Exception ignore) {}
                     throw new IOException("720p 변환 실패: " + e.getMessage(), e);
                 }
@@ -104,20 +111,26 @@ public class ShortsUploadServiceImpl implements ShortsUploadService {
                 .build();
 
             try (InputStream vis = Files.newInputStream(tmpVid)) {
+                log.info("S3 비디오 업로드 시작: s3://{}/{} ({}x{}, {} bytes, {} sec, {})",
+                    bucket, videoKey, width, height, Files.size(tmpVid), String.format("%.1f", duration), region);
                 s3.putObject(videoPut, RequestBody.fromInputStream(vis, Files.size(tmpVid)));
             }
-
+            log.info("S3 비디오 업로드 성공: s3://{}/{} ({}x{}, {} bytes, {} sec, {})",
+                bucket, videoKey, width, height, Files.size(tmpVid), String.format("%.1f", duration), region);
             PutObjectRequest thumbPut = PutObjectRequest.builder()
                 .bucket(bucket).key(thumbKey)
                 .contentType(thumbnail.getContentType() == null ? "image/jpeg" : thumbnail.getContentType())
                 .build();
-
+            log.info("S3 썸네일 업로드 시작: s3://{}/{} ({})", bucket, thumbKey, region);
             try (InputStream tis = Files.newInputStream(tmpImg)) {
                 s3.putObject(thumbPut, RequestBody.fromInputStream(tis, Files.size(tmpImg)));
             }
-
+            log.info("S3 썸네일 업로드 성공: s3://{}/{} ({} bytes, {})",
+                bucket, thumbKey, Files.size(tmpImg), region);
             // DB 저장 
-            CustomerEntity ref = entityManager.getReference(CustomerEntity.class, 1L);
+            CustomerEntity ref = entityManager.getReference(CustomerEntity.class, customerId);
+            log.info("customer entity: {}", ref);
+
             ShortsEntity shortsEntity = ShortsEntity.builder()
                 .videoName(videoKey)
                 .thumbnail(thumbKey)
@@ -164,11 +177,16 @@ public class ShortsUploadServiceImpl implements ShortsUploadService {
             "-of", "csv=p=0",
             videoPath.toAbsolutePath().toString()
         );
+        log.info("ffprobe 실행: {}", String.join(" ", pb.command()));
         pb.redirectErrorStream(true);
         Process p = pb.start();
         String out;
         try (InputStream is = p.getInputStream()) {
             out = new String(is.readAllBytes(), StandardCharsets.UTF_8).trim();
+        } catch (Exception e) {
+            log.info("ffprobe 출력 읽기 실패: {}", e.getMessage());
+            p.destroyForcibly();
+            throw e;
         }
         int code = p.waitFor();
         if (code != 0 || out.isBlank()) throw new IOException("ffprobe 실패 code=" + code + ", out=" + out);

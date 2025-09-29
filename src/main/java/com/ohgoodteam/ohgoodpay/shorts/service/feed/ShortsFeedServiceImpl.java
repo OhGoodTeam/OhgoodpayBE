@@ -6,15 +6,18 @@ import com.ohgoodteam.ohgoodpay.common.entity.ReactionEntity;
 import com.ohgoodteam.ohgoodpay.common.entity.ShortsEntity;
 import com.ohgoodteam.ohgoodpay.common.repository.CustomerRepository;
 // import com.ohgoodteam.ohgoodpay.shorts.Converter;
+import com.ohgoodteam.ohgoodpay.security.util.JWTUtil;
 import com.ohgoodteam.ohgoodpay.shorts.dto.request.feed.ShortsCommentRequestDTO;
 import com.ohgoodteam.ohgoodpay.shorts.dto.request.feed.ShortsPointEarnRequestDTO;
 import com.ohgoodteam.ohgoodpay.shorts.dto.response.feed.ShortsCommentDataDTO;
 import com.ohgoodteam.ohgoodpay.shorts.dto.response.feed.ShortsFeedDataDTO;
 import com.ohgoodteam.ohgoodpay.shorts.dto.request.feed.ShortsReactionRequestDTO;
 import com.ohgoodteam.ohgoodpay.shorts.dto.response.feed.*;
+import com.ohgoodteam.ohgoodpay.shorts.enums.profile.SubscriptionStatus;
 import com.ohgoodteam.ohgoodpay.shorts.repository.CommentRepository;
 import com.ohgoodteam.ohgoodpay.shorts.repository.ReactionRepository;
 import com.ohgoodteam.ohgoodpay.shorts.repository.ShortsRepository;
+import com.ohgoodteam.ohgoodpay.shorts.repository.SubscriptionRepository;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Value;
@@ -28,6 +31,7 @@ import java.sql.Timestamp;
 import java.time.LocalDateTime;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Map;
 import java.util.Optional;
 
 @Service
@@ -35,10 +39,13 @@ import java.util.Optional;
 @RequiredArgsConstructor
 public class ShortsFeedServiceImpl implements ShortsFeedService {
 
+    private final JWTUtil jwtUtil;
+
     private final CustomerRepository customerRepository;
     private final ShortsRepository shortsRepository;
     private final CommentRepository commentRepository;
     private final ReactionRepository reactionRepository;
+    private final SubscriptionRepository subscriptionRepository;
 
     @Value("${ranking.w.like:1.5}")    private double wLike;
     @Value("${ranking.w.comment:1.2}") private double wComment;
@@ -63,13 +70,18 @@ public class ShortsFeedServiceImpl implements ShortsFeedService {
     public List<ShortsFeedDataDTO> findAllFeeds(int page, int size, String keyword, Long customerId) {
         log.info("findAllFeeds 호출 : page={}, size={}, keyword={}, customerId={}", page, size, keyword, customerId);
 
+        Page<Map<String, Object>> results;
         Pageable pageable = PageRequest.of(page - 1, size);
-        Page<Object[]> results = shortsRepository.findAllFeeds(wLike, wComment, wHashtag, wRecency, tauHours, customerId, pageable);
+        if(customerId < 1) {
+            results = shortsRepository.findAllFeedsNoToken(wLike, wComment, wHashtag, wRecency, tauHours, pageable);
+        } else {
+            results = shortsRepository.findAllFeeds(wLike, wComment, wHashtag, wRecency, tauHours, customerId, pageable);
+        }
 
         // Object[] 배열을 ShortsFeedDataDto로 변환
         List<ShortsFeedDataDTO> result = new ArrayList<>();
-        for (Object[] row : results.getContent()) {
-            result.add(convertToShortsFeedDataDto(row));
+        for (Map<String, Object> row : results.getContent()) {
+            result.add(convertToShortsFeedDataDto(row,customerId));
         }
 
         log.info("JPA 조회 결과: {}", result);
@@ -83,21 +95,34 @@ public class ShortsFeedServiceImpl implements ShortsFeedService {
     /**
      * Object[] 배열을 ShortsFeedDataDto로 변환
      */
-    private ShortsFeedDataDTO convertToShortsFeedDataDto(Object[] row) {
+    private ShortsFeedDataDTO convertToShortsFeedDataDto(Map<String, Object> row, Long targetId) {
         // 각 컬럼을 의미있는 변수명으로 추출
-        Long shortsId = (Long) row[0];
-        String videoName = (String) row[1];
-        String thumbnail = (String) row[2];
-        String shortsName = (String) row[3];
-        String shortsExplain = (String) row[4];
-        LocalDateTime date = ((Timestamp) row[5]).toLocalDateTime();
-        Long customerId = (Long) row[6];
-        String customerNickname = (String) row[7];
-        String profileImg = (String) row[8];
-        int likeCount = ((Number) row[9]).intValue();
-        int commentCount = ((Number) row[10]).intValue();
-        String myReaction = (String) row[11];
-        Double score = ((Number) row[12]).doubleValue(); // score는 12번째 인덱스
+        Long shortsId = (Long) row.get("shortsId");
+        String videoName = (String) row.get("videoName");
+        String thumbnail = (String) row.get("thumbnail");
+        String shortsName = (String) row.get("shortsName");
+        String shortsExplain = (String) row.get("shortsExplain");
+        LocalDateTime date = ((Timestamp) row.get("date")).toLocalDateTime();
+        Long customerId = Long.parseLong(String.valueOf(row.get("customerId")));
+        String customerNickname = (String) row.get("nickname");
+        String profileImg = (String) row.get("profileImg");
+        int likeCount = ((Number) row.get("likeCount")).intValue();
+        int commentCount = ((Number) row.get("commentCount")).intValue();
+        String myReaction = (String) row.get("myReaction"); // myReaction는 11번째 인덱스
+        Double score = ((Number) row.get("score")).doubleValue(); // score는 12번째 인덱스
+
+        if(targetId == 0) {
+            myReaction = null; // 비로그인 사용자는 myReaction 무조건 null
+        }
+
+        SubscriptionStatus subscriptionStatus;
+        if(targetId.equals(customerId)){
+            subscriptionStatus = SubscriptionStatus.SELF;
+        } else if(subscriptionRepository.existsByFollowerCustomerIdAndFollowingCustomerId(targetId, customerId)){
+            subscriptionStatus = SubscriptionStatus.SUBSCRIBED;
+        } else {
+            subscriptionStatus = SubscriptionStatus.NOT_SUBSCRIBED;
+        }
         
         // 점수 콘솔 출력
         log.info("쇼츠 ID: {}, 제목: {}, 좋아요: {}, 댓글: {}, 점수: {}", 
@@ -116,6 +141,7 @@ public class ShortsFeedServiceImpl implements ShortsFeedService {
                 .likeCount(likeCount)
                 .commentCount(commentCount)
                 .myReaction(myReaction)
+                .subscriptionStatus(subscriptionStatus)
                 .build();
     }
 
@@ -125,13 +151,17 @@ public class ShortsFeedServiceImpl implements ShortsFeedService {
      * @return
      */
     @Override
-    public List<ShortsCommentDataDTO> findAllComments(Long shortsId) {
-
+    public List<ShortsCommentDataDTO> findAllComments(Long shortsId, Long customerId) {
         List<CommentEntity> result = commentRepository.findAllComments(shortsId);
 
         List<ShortsCommentDataDTO> data = new ArrayList<>();
         for(CommentEntity item : result){
             ShortsCommentDataDTO dto = new ShortsCommentDataDTO(item);
+            if(!"0".equals(customerId) && item.getCustomer().getCustomerId().equals(customerId)){
+                dto.setDeletable(true);
+            } else {
+                dto.setDeletable(false);
+            }
             data.add(dto);
         }
         return data;
@@ -144,9 +174,9 @@ public class ShortsFeedServiceImpl implements ShortsFeedService {
      */
     @Override
     @Transactional
-    public boolean createComment(Long shortsId, ShortsCommentRequestDTO shortsCommentRequestDto) {
+    public boolean createComment(Long shortsId, ShortsCommentRequestDTO shortsCommentRequestDto, Long customerId) {
         // 1. 작성자 조회
-        CustomerEntity customer = customerRepository.findById(shortsCommentRequestDto.getCustomerId()).orElseThrow(() -> new IllegalArgumentException("존재하지 않는 회원입니다."));
+        CustomerEntity customer = customerRepository.findById(customerId).orElseThrow(() -> new IllegalArgumentException("존재하지 않는 회원입니다."));
 
         // 2. 쇼츠 조회
        ShortsEntity shorts =  shortsRepository.findById(shortsId).orElseThrow(() -> new IllegalArgumentException("존재하지 않는 쇼츠입니다."));
@@ -179,9 +209,9 @@ public class ShortsFeedServiceImpl implements ShortsFeedService {
      */
     @Override
     @Transactional
-    public ShortsReactionDataDTO reactToShorts(ShortsReactionRequestDTO dto) {
+    public ShortsReactionDataDTO reactToShorts(ShortsReactionRequestDTO dto, Long customerId) {
         // 1. 작성자 조회
-        CustomerEntity customer = customerRepository.findById(dto.getCustomerId()).orElseThrow(() -> new IllegalArgumentException("존재하지 않는 회원입니다."));
+        CustomerEntity customer = customerRepository.findById(customerId).orElseThrow(() -> new IllegalArgumentException("존재하지 않는 회원입니다."));
 
         // 2. 쇼츠 조회
         ShortsEntity shorts = shortsRepository.findById(dto.getShortsId()).orElseThrow(() -> new IllegalArgumentException("존재하지 않는 쇼츠입니다."));
@@ -315,8 +345,7 @@ public class ShortsFeedServiceImpl implements ShortsFeedService {
     // 포인트 게이지 적립
     @Override
     @Transactional
-    public ShortsPointEarnResponseDTO earnPoint(ShortsPointEarnRequestDTO requestDto) {
-        Long customerId = requestDto.customerId();
+    public ShortsPointEarnResponseDTO earnPoint(Long customerId, ShortsPointEarnRequestDTO requestDto) {
         int watchedSeconds = requestDto.watchedSeconds();
         
         // 1. 오늘 적립된 포인트 합계 조회

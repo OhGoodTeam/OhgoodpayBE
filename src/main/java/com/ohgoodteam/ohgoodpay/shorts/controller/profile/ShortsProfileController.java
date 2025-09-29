@@ -1,4 +1,5 @@
 package com.ohgoodteam.ohgoodpay.shorts.controller.profile;
+import com.ohgoodteam.ohgoodpay.security.util.JWTUtil;
 import com.ohgoodteam.ohgoodpay.shorts.dto.response.ApiResponseWrapper;
 import com.ohgoodteam.ohgoodpay.shorts.dto.response.profile.ShortsProfileDataDTO;
 import org.springframework.http.ResponseEntity;
@@ -6,18 +7,20 @@ import org.springframework.web.bind.annotation.*;
 import org.springframework.web.multipart.MultipartFile;
 import com.ohgoodteam.ohgoodpay.shorts.dto.response.profile.ShortsProfileEditResponseDTO;
 import com.ohgoodteam.ohgoodpay.shorts.service.profile.ShortsProfileService;
-
+import jakarta.servlet.http.HttpServletRequest;
 import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
 
+@Slf4j
 @RestController
 @RequiredArgsConstructor
 @RequestMapping("/api")
 public class ShortsProfileController {
     private final ShortsProfileService shortsProfileService;
+    private final JWTUtil jwtUtil;
 
     /**
      * 프로필 편집
-     * @param customerId
      * @param nickname
      * @param introduce
      * @param profileImg
@@ -25,12 +28,13 @@ public class ShortsProfileController {
      */
     @PostMapping("/shorts/profile/edit")
     public ResponseEntity<ShortsProfileEditResponseDTO> editProfile(
-        @RequestParam("customerId") Long customerId,
+        HttpServletRequest request,
         @RequestParam("nickname") String nickname,
         @RequestParam("introduce") String introduce,
         @RequestPart(value = "profileImg", required = false) MultipartFile profileImg
-    ) {
-        return ResponseEntity.ok(shortsProfileService.editProfile(customerId, nickname, introduce, profileImg));
+    ) throws Exception {
+        String customerId = jwtUtil.extractCustomerId(request);
+        return ResponseEntity.ok(shortsProfileService.editProfile(Long.parseLong(customerId), nickname, introduce, profileImg));
     }
 
 
@@ -45,10 +49,12 @@ public class ShortsProfileController {
     public ApiResponseWrapper<ShortsProfileDataDTO> getProfile(
             @RequestParam (value = "targetId") Long targetId,
             @RequestParam (value = "page") int page,
-            @RequestParam (value = "sortBy", defaultValue = "latest") String sortBy
-    ){
+            @RequestParam (value = "sortBy", defaultValue = "latest") String sortBy,
+            HttpServletRequest request
+    ) throws Exception {
         try {
-            ShortsProfileDataDTO dto =  shortsProfileService.getProfile(targetId,page,sortBy);
+            String customerId = jwtUtil.extractCustomerId(request);
+            ShortsProfileDataDTO dto =  shortsProfileService.getProfile(Long.parseLong(customerId),targetId,page,sortBy);
             return ApiResponseWrapper.ok(dto);
         }
         catch (IllegalArgumentException e){
@@ -61,16 +67,17 @@ public class ShortsProfileController {
      */
     @PostMapping("/shorts/subscribe/{targetId}")
     public ApiResponseWrapper<String> subscribe(
-        @PathVariable Long targetId
-    ){
-        Long cutomerId = 1L; // TODO: 인증 로직 후 수정
+        @PathVariable Long targetId,
+        HttpServletRequest request
+    ) throws Exception {
+        String cutomerId = jwtUtil.extractCustomerId(request);
         // + 자기 자신 구독 방지
-        if(cutomerId.equals(targetId)){
+        if(targetId.equals(Long.parseLong(cutomerId))){
             return ApiResponseWrapper.error(400, "자기 자신은 구독할 수 없습니다.");
         }
 
         try {
-            long result = shortsProfileService.subscribe(cutomerId, targetId);
+            long result = shortsProfileService.subscribe(Long.parseLong(cutomerId), targetId);
 
             if(result == 0){
                 return ApiResponseWrapper.error(400, "이미 구독한 사용자입니다.");

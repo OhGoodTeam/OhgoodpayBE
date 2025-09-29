@@ -13,19 +13,19 @@ public interface ShortsFeedService {
     List<ShortsFeedDataDTO> findAllFeeds(int page, int size, String keyword, Long customerId);
 
     // 댓글 조회
-    List<ShortsCommentDataDTO> findAllComments(Long shortsId);
+    List<ShortsCommentDataDTO> findAllComments(Long shortsId, Long customerId);
 
     // 댓글 작성
-    boolean createComment(Long shortsId, ShortsCommentRequestDTO shortsCommentRequestDto);
+    boolean createComment(Long shortsId, ShortsCommentRequestDTO shortsCommentRequestDto, Long customerId);
 
     // 좋아요 반응 처리
-    ShortsReactionDataDTO reactToShorts(ShortsReactionRequestDTO shortsReactionRequestDto);
+    ShortsReactionDataDTO reactToShorts(ShortsReactionRequestDTO shortsReactionRequestDto, Long customerId);
 
     // 공유기능 -> 특정 영상에 대한 정보 반환
     ShortsFeedDataDTO getSpecificShorts(Long shortsId);
 
     // 포인트 게이지 포인트 적립
-    ShortsPointEarnResponseDTO earnPoint(ShortsPointEarnRequestDTO requestDto);
+    ShortsPointEarnResponseDTO earnPoint(Long customerId, ShortsPointEarnRequestDTO requestDto);
 
     // 댓글 삭제
     ShortsCommentDeleteDataDTO deleteComment(Long shortsId, Long commentId, Long customerId);

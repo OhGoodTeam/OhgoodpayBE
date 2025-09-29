@@ -29,7 +29,7 @@ public class ShortsSearchController {
      * @param lastScore
      * @return
      */
-    @GetMapping("/shorts/search")
+    @GetMapping("/public/shorts/search")
     public CursorResponse search(
         @RequestParam(required = false) String q,
         @RequestParam(required = false) Integer limit,

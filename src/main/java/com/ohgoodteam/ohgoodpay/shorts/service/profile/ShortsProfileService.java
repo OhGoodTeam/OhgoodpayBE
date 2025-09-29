@@ -13,7 +13,7 @@ public interface ShortsProfileService {
      * @param sortBy
      * @return
      */
-    ShortsProfileDataDTO getProfile(Long targetId, int page, String sortBy);
+    ShortsProfileDataDTO getProfile(Long customerId, Long targetId, int page, String sortBy);
 
     /**
      * 구독 요청

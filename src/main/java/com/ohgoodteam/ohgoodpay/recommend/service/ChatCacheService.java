@@ -137,4 +137,28 @@ public class ChatCacheService {
                 ? products.subList(0, 3)
                 : products;
     }
+
+    /**
+     * sessionId 기반 레디스 정보들 삭제
+     * 대화 플로우 변경으로 인한, 기존 플로우 종료나 세션 초기화 시 사용
+     *
+     * @param sessionId 삭제할 세션 ID
+     */
+    public void clearSessionCache(String sessionId) {
+        log.info("세션 캐시 삭제 시작: sessionId = {}", sessionId);
+
+        try {
+            // 세션 기반으로 저장된 모든 데이터 삭제
+            cacheStore.deleteBySession(CacheSpec.MOOD, sessionId);
+            cacheStore.deleteBySession(CacheSpec.SUMMARY, sessionId);
+            cacheStore.deleteBySession(CacheSpec.FLOW, sessionId);
+            cacheStore.deleteBySession(CacheSpec.COUNT, sessionId);
+            cacheStore.deleteBySession(CacheSpec.PRODUCTS, sessionId);
+
+            log.info("세션 캐시 삭제 완료: sessionId = {}", sessionId);
+        } catch (Exception e) {
+            log.error("세션 캐시 삭제 중 오류 발생: sessionId = {}, error = {}", sessionId, e.getMessage(), e);
+            throw new RuntimeException("세션 캐시 삭제 실패", e);
+        }
+    }
 }

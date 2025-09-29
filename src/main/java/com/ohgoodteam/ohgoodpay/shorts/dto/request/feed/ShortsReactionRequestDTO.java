@@ -10,7 +10,6 @@ import lombok.NoArgsConstructor;
 @AllArgsConstructor
 @Builder
 public class ShortsReactionRequestDTO {
-    private Long customerId; // 반응 남긴 사용자 ID
     private Long shortsId; // 반응 남긴 쇼츠 ID
     private String type; // 반응 타입 (like, dislike)
 }

@@ -1,10 +1,7 @@
 package com.ohgoodteam.ohgoodpay.shorts.dto.response.feed;
 
 import com.ohgoodteam.ohgoodpay.common.entity.CommentEntity;
-import lombok.AllArgsConstructor;
-import lombok.Builder;
-import lombok.Getter;
-import lombok.NoArgsConstructor;
+import lombok.*;
 
 import java.time.LocalDateTime;
 
@@ -28,6 +25,10 @@ public class ShortsCommentDataDTO {
     private String nickname;
     private String profileImg;
 
+    // 댓글 삭제 가능 여부
+    @Setter
+    private boolean deletable;
+
     public ShortsCommentDataDTO(CommentEntity commentEntity){
         this.commentId = commentEntity.getCommentId();
         this.customerId = commentEntity.getCustomer().getCustomerId();
@@ -37,5 +38,6 @@ public class ShortsCommentDataDTO {
         this.date = commentEntity.getDate();
         this.nickname = commentEntity.getCustomer().getNickname();
         this.profileImg = commentEntity.getCustomer().getProfileImg();
+        this.deletable = false;
     }
 }

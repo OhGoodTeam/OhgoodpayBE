@@ -9,5 +9,5 @@ import com.ohgoodteam.ohgoodpay.recommend.dto.datadto.llmdto.BasicChatResponseDT
  */
 public interface ChatService {
     // 채팅 생성
-    BasicChatResponseDTO chat(Long customerId, String sessionId, String message);
+    BasicChatResponseDTO chat(Long customerId, String sessionId, String message, String flow);
 }

@@ -59,6 +59,8 @@ public class UnifiedFlowProcessor implements FlowProcessor{
         // 6. QUESTION vs RESPONSE에 따라서 LLM에 주입할 플로우 분기, 지금은 QUESTION만 존재.
         String flow = getTargetFlow(context);
 
+        log.info("-------여기 플로우 전환 어케 되는지 봐야함!!!! 반드시 다음 플로우가 나와야 하는데.. : {}---------",flow);
+
         return llmService.generateChat(
                 context.getSessionId(),
                 contextWrapper.getCustomerInfo(),

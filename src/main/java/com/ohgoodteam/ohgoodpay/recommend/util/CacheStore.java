@@ -123,4 +123,24 @@ public class CacheStore {
         }
         return loaded;
     }
+
+    /**
+     * 특정 세션의 특정 캐시 타입 삭제
+     *
+     * @param spec 캐시 스펙
+     * @param sessionId 세션 ID
+     * @return 삭제 성공 여부
+     */
+    public boolean deleteBySession(CacheSpec spec, String sessionId) {
+        try {
+            String key = sessionKey(spec, sessionId); //규칙에 따라 정의된 키 불러오기
+            Boolean deleted = redis.delete(key);
+            log.debug("Redis 세션 키 삭제: {} -> {}", key, deleted);
+            return Boolean.TRUE.equals(deleted);
+        } catch (Exception e) {
+            log.error("Redis 세션 키 삭제 실패: sessionId={}, spec={}, error={}",
+                    sessionId, spec, e.getMessage());
+            return false;
+        }
+    }
 }
